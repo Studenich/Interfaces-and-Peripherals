@@ -1,0 +1,68 @@
+void getAtaSupportStandarts(HANDLE diskHandle) {
+
+	UCHAR identifyDataBuffer[512 + sizeof(ATA_PASS_THROUGH_EX)] = { 0 };
+
+	ATA_PASS_THROUGH_EX &PTE = *(ATA_PASS_THROUGH_EX *)identifyDataBuffer;	//ata	
+	PTE.Length = sizeof(PTE);
+	PTE.TimeOutValue = 10;
+	PTE.DataTransferLength = 512;
+	PTE.DataBufferOffset = sizeof(ATA_PASS_THROUGH_EX);
+	PTE.AtaFlags = ATA_FLAGS_DATA_IN;
+	IDEREGS *ideRegs = (IDEREGS *)PTE.CurrentTaskFile;
+	ideRegs->bCommandReg = 0xEC;
+	if (!DeviceIoControl(diskHandle,
+		IOCTL_ATA_PASS_THROUGH,								//ATA_PASS_THROUGH_EX
+		&PTE, sizeof(identifyDataBuffer), &PTE, sizeof(identifyDataBuffer), NULL, NULL)) {
+		cout << GetLastError() << std::endl;
+		return;
+	}
+	WORD *data = (WORD *)(identifyDataBuffer + sizeof(ATA_PASS_THROUGH_EX));
+	short ataSupportByte = data[80];
+	int i = 2 * BYTE_SIZE;
+	int bitArray[2 * BYTE_SIZE];
+	//ata data array
+	while (i--) {
+		bitArray[i] = ataSupportByte & 32768 ? 1 : 0;
+		ataSupportByte = ataSupportByte << 1;
+	}
+	cout << "ATA Support:   ";
+	for (int i = 8; i >= 4; i--) {
+		if (bitArray[i] == 1) {
+			cout << "ATA" << i;
+			if (i != 4) {
+				cout << ", ";
+			}
+		}
+	}
+	cout << endl;
+	unsigned short dmaSupportedBytes = data[63];
+	int i2 = 2 * BYTE_SIZE;
+	//dma data array
+	while (i2--) {
+		bitArray[i2] = dmaSupportedBytes & 32768 ? 1 : 0;
+		dmaSupportedBytes = dmaSupportedBytes << 1;
+	}
+	cout << "DMA Support:   ";
+	for (int i = 0; i <8; i++) {
+		if (bitArray[i] == 1) {
+			cout << "DMA" << i;
+			if (i != 2) cout << ", ";
+		}
+	}
+	cout << endl;
+	unsigned short pioSupportedBytes = data[63];
+	int i3 = 2 * BYTE_SIZE;
+	//pio data array
+	while (i3--) {
+		bitArray[i3] = pioSupportedBytes & 32768 ? 1 : 0;
+		pioSupportedBytes = pioSupportedBytes << 1;
+	}
+	cout << "PIO Support:   ";
+	for (int i = 0; i <2; i++) {
+		if (bitArray[i] == 1) {
+			cout << "PIO" << i + 3;
+			if (i != 1) cout << ", ";
+		}
+	}
+	cout << endl;
+}
